@@ -3,6 +3,7 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {RootStackParamList, Screens} from './type';
 import RootBottomNavigation from './RootBottomNavigation';
 import DetailScreen from '../screens/DetailScreen/DetailScreen';
+import ConvertScreen from '../screens/HomeScreen/ConvertScreen';
 
 
 const RootStackNavigation = () => {
@@ -14,8 +15,10 @@ const RootStackNavigation = () => {
     }}
     >
       <Stack.Screen name={Screens.RootBottomNavigation} component={RootBottomNavigation}/>
-      <Stack.Screen name={Screens.DetailScreen} component={DetailScreen} />
     
+      <Stack.Screen name={Screens.ConvertScreen} component={ConvertScreen} />
+      <Stack.Screen name={Screens.DetailScreen} component={DetailScreen} />
+
     </Stack.Navigator>
   );
 };

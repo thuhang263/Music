@@ -11,6 +11,7 @@ export enum Screens {
     TestScreen ='TestScreen',
     RootBottomNavigation = 'RootBottomNavigation',
     SettingScreen = "SettingScreen",
+    ConvertScreen = "ConvertScreen",
     
 }
 
@@ -19,16 +20,16 @@ export type RootBottomParamList = {
     [Screens.DetailScreen]: undefined;
     [Screens.SettingScreen]: undefined;
     [Screens.ListScreen]: undefined;
- 
+    [Screens.ConvertScreen]: undefined;
  
 };
 
 export type RootStackParamList = {
     [Screens.RootBottomNavigation]: NavigatorScreenParams<RootBottomParamList>;
-    [Screens.DetailScreen]: { movieId: number };
+    [Screens.DetailScreen]: { music: { id: number; uri: string; name: string } }; 
     HomeScreen:undefined;
     ListScreen:undefined;
-   
+    ConvertScreen: { videoUri: string };
   };
 
 declare global {

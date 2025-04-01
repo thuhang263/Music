@@ -3,6 +3,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import { FFmpegKit } from 'ffmpeg-kit-react-native';
 import RNFS from 'react-native-fs';
 import { realm, Music } from '../data/realm'; 
+import { Alert, PermissionsAndroid, Platform } from 'react-native';
 
 export const saveToRealm = (name: string, uri: string) => {
   realm.write(() => {
@@ -39,23 +40,93 @@ export const pickVideo = async (): Promise<string | null> => {
   }
 };
 
-export const pickAndConvertVideo = async (): Promise<Music | null> => {
+export const requestStoragePermissions = async (): Promise<boolean> => {
   try {
-    const videoUri = await pickVideo();
-    if (!videoUri) return null; // Nếu không có video, thoát luôn
+    if (Platform.OS === 'android' && Platform.Version >= 29) {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.MANAGE_EXTERNAL_STORAGE
+      );
 
-    const audioPath = `${RNFS.DocumentDirectoryPath}/converted_audio.mp3`;
-    const command = `-i ${videoUri} -q:a 0 -map a ${audioPath}`;
-    await FFmpegKit.execute(command);
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        console.log('Quyền truy cập bộ nhớ ngoài đã được cấp.');
+        return true;
+      } else {
+        console.error('Quyền truy cập bộ nhớ ngoài bị từ chối.');
+        Alert.alert('Thông báo', 'Quyền truy cập bộ nhớ ngoài bị từ chối.');
+        return false;
+      }
+    } else {
+      const granted = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+        PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+      ]);
 
-    realm.write(() => {
-      const id = realm.objects<Music>('Music').length + 1;
-      realm.create('Music', { id, name: 'Converted Audio', uri: `file://${audioPath}` });
-    });
-
-    return realm.objects<Music>('Music').sorted('id', true)[0]; // Lấy file vừa tạo
+      if (
+        granted['android.permission.READ_EXTERNAL_STORAGE'] === PermissionsAndroid.RESULTS.GRANTED &&
+        granted['android.permission.WRITE_EXTERNAL_STORAGE'] === PermissionsAndroid.RESULTS.GRANTED
+      ) {
+        console.log('Quyền truy cập được cấp.');
+        return true;
+      } else {
+        console.error('Quyền truy cập bị từ chối.');
+        Alert.alert('Thông báo', 'Quyền truy cập bị từ chối. Không thể thực hiện chuyển đổi.');
+        return false;
+      }
+    }
   } catch (error) {
-    console.error('Lỗi khi convert video:', error);
+    console.error('Lỗi khi yêu cầu quyền:', error);
+    Alert.alert('Lỗi', 'Có lỗi xảy ra khi yêu cầu quyền.');
+    return false;
+  }
+};
+
+export const pickAndConvertVideo = async (videoUri: string): Promise<Music | null> => {
+  try {
+    if (!videoUri) {
+      console.error('Đường dẫn video không hợp lệ:', videoUri);
+      return null;
+    }
+    console.log('Đường dẫn video:', videoUri);
+
+    // Kiểm tra quyền truy cập bộ nhớ
+    const permissionsGranted = await requestStoragePermissions();
+    if (!permissionsGranted) {
+      console.error('Không có quyền truy cập bộ nhớ ngoài.');
+      return null;
+    }
+
+    // Đường dẫn âm thanh MP3 đầu ra
+    const audioPath = `${RNFS.DocumentDirectoryPath}/converted_audio.mp3`;
+
+    // Nếu videoUri là content:// (trên Android), bạn có thể cần phải chuyển đổi nó
+    const isContentUri = videoUri.startsWith('content://');
+    const filePath = isContentUri ? await RNFS.copyAssetsFileIOS(videoUri, RNFS.DocumentDirectoryPath + '/temp_video.mp4', 0, 0) : videoUri;
+
+    // Cấu hình lệnh FFmpeg để chuyển đổi video sang audio MP3
+    const command = `-i "${filePath}" -vn -ar 44100 -ac 2 -b:a 192k -f mp3 "${audioPath}"`;
+    console.log('Lệnh FFmpeg:', command);
+
+    // Thực thi lệnh FFmpeg
+    const session = await FFmpegKit.execute(command);
+    const returnCode = await session.getReturnCode();
+
+    if (returnCode === 0) {
+      console.log('Convert video sang audio thành công. File audio tại:', audioPath);
+      // Ghi dữ liệu vào Realm
+      realm.write(() => {
+        const id = realm.objects<Music>('Music').length + 1;
+        realm.create('Music', { id, name: 'Converted Audio', uri: `file://${audioPath}` });
+      });
+      const newMusic = realm.objects<Music>('Music').sorted('id', true)[0];
+      console.log('Đối tượng nhạc được tạo:', newMusic);
+      return newMusic;
+    } else {
+      console.error('Lỗi khi thực thi FFmpeg, mã lỗi:', returnCode);
+      return null;
+    }
+  } catch (error) {
+    console.error('Lỗi xảy ra khi chuyển đổi video sang audio:', error);
     return null;
   }
 };
+
