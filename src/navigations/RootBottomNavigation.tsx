@@ -6,6 +6,7 @@ import ListScreen from '../screens/ListScreen/ListScreen';
 import SettingScreen from '../screens/SettingScreen/SettingScreen';
 import {Image} from 'react-native';
 import {Dimensions} from 'react-native';
+import LikeScreen from '../screens/Like/Like';
 const {width} = Dimensions.get('window');
 const isTablet = width >= 768;
 const RootBottomNavigation = () => {
@@ -29,6 +30,8 @@ const RootBottomNavigation = () => {
             imageSource = require('../assets/images/home.png');
           } else if (route.name === Screens.ListScreen) {
             imageSource = require('../assets/images/list.png');
+          }else if (route.name === Screens.LikeScreen) {
+              imageSource = require('../assets/images/like.png');
           } else if (route.name === Screens.SettingScreen) {
             imageSource = require('../assets/images/setting.png');
           }
@@ -39,7 +42,7 @@ const RootBottomNavigation = () => {
               style={{
                 width: isTablet ? 24 * 1.5 : 24,
                 height: isTablet ? 24 * 1.5 : 24,
-                tintColor: focused ? '#008000' : '#558B71',
+                tintColor: focused ? '#558B71' : '#558B71',
                 opacity: focused ? 1 : 0.16,
               }}
             />
@@ -54,6 +57,11 @@ const RootBottomNavigation = () => {
       <Tab.Screen
         name={Screens.ListScreen}
         component={ListScreen}
+        options={{headerShown: false}}
+      />
+      <Tab.Screen
+        name={Screens.LikeScreen}
+        component={LikeScreen}
         options={{headerShown: false}}
       />
       <Tab.Screen
