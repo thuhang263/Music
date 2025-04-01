@@ -11,7 +11,7 @@ import {
   Image,
 } from 'react-native';
 import { realm, Music } from '../../data/realm';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { pickAudioFile, pickVideo } from '../../utils/musicUtils';
 import { Screens } from '../../navigations/type';
 import TrackPlayer from 'react-native-track-player';
@@ -72,10 +72,15 @@ export default function HomeScreen() {
     const updatedMusicList = realm.objects<Music>('Music');
     setMusicList([...updatedMusicList]);
   };
-
+  useFocusEffect(
+    React.useCallback(() => {
+      const musicObjects = realm.objects<Music>('Music');
+      setMusicList([...musicObjects]);
+    }, [])
+  );
   return (
     <View style={styles.container}>
-      
+
       <Button title="Thêm nhạc từ file" onPress={handleAddMusic} />
       <Button title="Chọn video để convert" onPress={handlePickVideo} />
 

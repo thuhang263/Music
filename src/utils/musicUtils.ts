@@ -80,53 +80,5 @@ export const requestStoragePermissions = async (): Promise<boolean> => {
   }
 };
 
-export const pickAndConvertVideo = async (videoUri: string): Promise<Music | null> => {
-  try {
-    if (!videoUri) {
-      console.error('Đường dẫn video không hợp lệ:', videoUri);
-      return null;
-    }
-    console.log('Đường dẫn video:', videoUri);
 
-    // Kiểm tra quyền truy cập bộ nhớ
-    const permissionsGranted = await requestStoragePermissions();
-    if (!permissionsGranted) {
-      console.error('Không có quyền truy cập bộ nhớ ngoài.');
-      return null;
-    }
-
-    // Đường dẫn âm thanh MP3 đầu ra
-    const audioPath = `${RNFS.DocumentDirectoryPath}/converted_audio.mp3`;
-
-    // Nếu videoUri là content:// (trên Android), bạn có thể cần phải chuyển đổi nó
-    const isContentUri = videoUri.startsWith('content://');
-    const filePath = isContentUri ? await RNFS.copyAssetsFileIOS(videoUri, RNFS.DocumentDirectoryPath + '/temp_video.mp4', 0, 0) : videoUri;
-
-    // Cấu hình lệnh FFmpeg để chuyển đổi video sang audio MP3
-    const command = `-i "${filePath}" -vn -ar 44100 -ac 2 -b:a 192k -f mp3 "${audioPath}"`;
-    console.log('Lệnh FFmpeg:', command);
-
-    // Thực thi lệnh FFmpeg
-    const session = await FFmpegKit.execute(command);
-    const returnCode = await session.getReturnCode();
-
-    if (returnCode === 0) {
-      console.log('Convert video sang audio thành công. File audio tại:', audioPath);
-      // Ghi dữ liệu vào Realm
-      realm.write(() => {
-        const id = realm.objects<Music>('Music').length + 1;
-        realm.create('Music', { id, name: 'Converted Audio', uri: `file://${audioPath}` });
-      });
-      const newMusic = realm.objects<Music>('Music').sorted('id', true)[0];
-      console.log('Đối tượng nhạc được tạo:', newMusic);
-      return newMusic;
-    } else {
-      console.error('Lỗi khi thực thi FFmpeg, mã lỗi:', returnCode);
-      return null;
-    }
-  } catch (error) {
-    console.error('Lỗi xảy ra khi chuyển đổi video sang audio:', error);
-    return null;
-  }
-};
 

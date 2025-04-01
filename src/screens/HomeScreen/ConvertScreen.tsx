@@ -1,63 +1,62 @@
-import React, { useEffect } from 'react';
-import { View, Button, StyleSheet, Alert, Platform, TouchableOpacity, Image } from 'react-native';
+import React from 'react';
+import { View, Button, StyleSheet, Alert, Platform, TouchableOpacity, Image, Linking } from 'react-native';
 import Video from 'react-native-video';
-import { pickAndConvertVideo } from '../../utils/musicUtils';
+import { convertVideoToAudio } from '../../utils/MusicConvert';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
-import { PermissionsAndroid } from 'react-native'; // Import hàm yêu cầu quyền
+import { PermissionsAndroid } from 'react-native';
 import { Screens } from '../../navigations/type';
+import { realm,Music } from '../../data/realm';
 
-// Định nghĩa kiểu cho Stack Navigator
 type RootStackParamList = {
   HomeScreen: undefined;
   ConvertScreen: { videoUri: string };
 };
 
-// Định nghĩa kiểu dữ liệu cho navigation và route
 type ConvertScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ConvertScreen'>;
 type ConvertScreenRouteProp = RouteProp<RootStackParamList, 'ConvertScreen'>;
 
-// Định nghĩa props của ConvertScreen
 interface ConvertScreenProps {
   route: ConvertScreenRouteProp;
   navigation: ConvertScreenNavigationProp;
 }
 
+// Yêu cầu quyền truy cập bộ nhớ
 async function requestStoragePermissions(): Promise<boolean> {
   try {
-    // Kiểm tra nếu hệ điều hành là Android 10 (API 29) hoặc cao hơn
-    if (Platform.OS === 'android' && Platform.Version >= 29) {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.MANAGE_EXTERNAL_STORAGE
-      );
-
-      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-        console.log('Quyền truy cập bộ nhớ ngoài đã được cấp.');
-        return true;
+    if (Platform.OS === 'android') {
+      if (Platform.Version >= 30) {
+        // Android 11+ (API 30): Quản lý bộ nhớ ngoài
+        
       } else {
-        console.error('Quyền truy cập bộ nhớ ngoài bị từ chối.');
-        Alert.alert('Thông báo', 'Quyền truy cập bộ nhớ ngoài bị từ chối.');
-        return false;
-      }
-    } else {
-      // Yêu cầu quyền trên các phiên bản Android thấp hơn
-      const granted = await PermissionsAndroid.requestMultiple([
-        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-        PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-      ]);
+        // Android 10 trở xuống: Đọc và ghi bộ nhớ ngoài
+        const permissions = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+        ]);
 
-      if (
-        granted['android.permission.READ_EXTERNAL_STORAGE'] === PermissionsAndroid.RESULTS.GRANTED &&
-        granted['android.permission.WRITE_EXTERNAL_STORAGE'] === PermissionsAndroid.RESULTS.GRANTED
-      ) {
-        console.log('Quyền truy cập được cấp.');
-        return true;
-      } else {
-        console.error('Quyền truy cập bị từ chối.');
-        Alert.alert('Thông báo', 'Quyền truy cập bị từ chối. Không thể thực hiện chuyển đổi.');
-        return false;
+        const granted =
+          permissions[PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE] === PermissionsAndroid.RESULTS.GRANTED &&
+          permissions[PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE] === PermissionsAndroid.RESULTS.GRANTED;
+
+        if (granted) {
+          console.log('Quyền READ/WRITE_EXTERNAL_STORAGE đã được cấp.');
+          return true;
+        } else {
+          console.error('Quyền READ/WRITE_EXTERNAL_STORAGE bị từ chối.');
+          Alert.alert(
+            'Yêu cầu quyền',
+            'Ứng dụng cần quyền truy cập bộ nhớ để thực hiện chuyển đổi. Vui lòng cấp quyền trong Cài đặt.',
+            [
+              { text: 'Huỷ', style: 'cancel' },
+              { text: 'Đi tới Cài đặt', onPress: () => Linking.openSettings() },
+            ],
+          );
+          return false;
+        }
       }
     }
+    return true; // iOS không yêu cầu quyền bộ nhớ ngoài
   } catch (error) {
     console.error('Lỗi khi yêu cầu quyền:', error);
     Alert.alert('Lỗi', 'Có lỗi xảy ra khi yêu cầu quyền.');
@@ -71,22 +70,29 @@ export default function ConvertScreen({ route, navigation }: ConvertScreenProps)
   console.log('Đường dẫn video nhận được từ route:', videoUri);
 
   const handleConvertVideo = async () => {
-    const permissionsGranted = await requestStoragePermissions(); // Kiểm tra quyền trước khi xử lý
-    if (!permissionsGranted) {
-      console.error('Không có quyền truy cập file.');
-      return; // Dừng nếu không có quyền
-    }
-
+    const permissionsGranted = await requestStoragePermissions();
+    if (!permissionsGranted) return;
+  
     try {
-      console.log('Bắt đầu quá trình chuyển đổi video sang audio...');
-      const audio = await pickAndConvertVideo(videoUri); // Truyền videoUri vào hàm
-
+      console.log('Bắt đầu xử lý đường dẫn video...');
+      const audio = await convertVideoToAudio(videoUri);
+  
       if (audio) {
         console.log('Convert thành công:', audio);
-        Alert.alert('Thông báo', 'Convert thành công! Quay về màn hình chính.');
-        navigation.goBack(); // Quay về màn Home sau khi convert xong
+        
+        // Lưu vào Realm
+        realm.write(() => {
+          realm.create('Music', {
+            id: new Date().getTime(), // Đảm bảo ID là number
+            name: `Converted ${new Date().toLocaleTimeString()}`, // Đặt tên file
+            uri: audio, // Lưu đường dẫn file mp3 sau khi convert
+          });
+        });
+  
+        Alert.alert('Thông báo', 'Convert thành công và đã lưu vào danh sách nhạc!');
+        navigation.goBack();
       } else {
-        console.error('Convert thất bại. Vui lòng kiểm tra lại.');
+        console.error('Convert thất bại.');
         Alert.alert('Lỗi', 'Convert thất bại. Vui lòng thử lại.');
       }
     } catch (error) {
@@ -119,22 +125,22 @@ export default function ConvertScreen({ route, navigation }: ConvertScreenProps)
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    padding: 10 
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 10,
   },
   videoContainer: {
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     width: '100%',
   },
-  video: { 
-    width: '100%', 
-    height: 250, 
-    marginBottom: 20 
+  video: {
+    width: '100%',
+    height: 250,
+    marginBottom: 20,
   },
   backButton: {
     position: 'absolute',
