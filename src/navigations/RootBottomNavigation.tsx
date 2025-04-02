@@ -60,11 +60,6 @@ const RootBottomNavigation = () => {
         options={{headerShown: false}}
       />
       <Tab.Screen
-        name={Screens.LikeScreen}
-        component={LikeScreen}
-        options={{headerShown: false}}
-      />
-      <Tab.Screen
         name={Screens.SettingScreen}
         component={SettingScreen}
         options={{headerShown: false}}
